@@ -8,10 +8,10 @@ namespace CPPDeleteComments
 {
     class StringRange
     {
-        public int StartStringRange { get;private set; }
-        public int EndStringRange { get; private set; }
-        public int IndexFinalElement { get; private set; }
-        public int IndexStartElement { get; private set; }
+        public int StartStringRange { get;set; }
+        public int EndStringRange { get; set; }
+        public int IndexFinalElement { get; set; }
+        public int IndexStartElement { get; set; }
 
         public StringRange(int startRange,int endRange,int indexEndElement)
         {

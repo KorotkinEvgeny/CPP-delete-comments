@@ -9,17 +9,10 @@ namespace CPPDeleteComments
 {
     class ReaderCPPFile
     {
-        private List<string> fileRowsList;
-
-        public ReaderCPPFile()
-        {
-            this.fileRowsList = new List<string>();
-        }
 
         public List<string> GetAllLines(string path)
         {
-            fileRowsList.AddRange(File.ReadAllLines(path));
-            return fileRowsList;
+            return File.ReadAllLines(path).ToList();
         }
     }
 }

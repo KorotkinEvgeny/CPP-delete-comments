@@ -11,38 +11,50 @@ namespace CPPDeleteComments
     {
         private List<StringRange> stringsRangeInFile;
         private List<StringRange> stringsMultilineCommentsRange;
+        private List<string> allFileRowsWithoutSingleLineComments;
         private List<string> allFileRows;
 
         public WriterCPPFile()
         {
             stringsRangeInFile = new List<StringRange>();
             stringsMultilineCommentsRange = new List<StringRange>();
+            allFileRowsWithoutSingleLineComments = new List<string>();
+
         }
 
         public void ScanFile(List<string> fileRows, string path)
         {
             allFileRows = fileRows;
-            SearchAllFileForStrings();
+            SearchAllFileForStrings('\"');
             ReWriteFile(path);
         }
 
-        private void SearchAllFileForStrings()
+        /// <summary>
+        /// Method for getting all strings variable location in file. 
+        /// Check all rows of file to find string variables
+        /// Create an object of StringRange class which contain number of row where we detected double quotes
+        /// Also contain the numner of row where we detected second double quotes (it helps if we have multiline comment)
+        /// Also we stored position of double qoutes in string, where it was founded (it helps in situations where comment located after code in one string)       
+        /// We fill up stringsRangeInFile list
+        /// </summary>
+
+        private void SearchAllFileForStrings(char quotesPattern)
         {
-            int startFileStringIndex=0;
+            int startFileStringIndex = 0;
             int endFileStringIndex;
             int indexFinalElement;
             bool isMultilineString = false;
 
             foreach (string singleLine in allFileRows)
             {
-                if (singleLine.Contains("\""))
+                if (singleLine.Contains(quotesPattern))
                 {
                     if (!isMultilineString)
                     {
                         startFileStringIndex = allFileRows.IndexOf(singleLine);
-                        for (int i = singleLine.IndexOf("\"") + 1; i <= singleLine.Length; i++)//Maybe needed +1
+                        for (int i = singleLine.IndexOf(quotesPattern) + 1; i <= singleLine.Length; i++)
                         {
-                            if (singleLine[i] == '"')
+                            if (singleLine[i] == quotesPattern)
                             {
                                 indexFinalElement = i;
                                 endFileStringIndex = allFileRows.IndexOf(singleLine);
@@ -60,7 +72,7 @@ namespace CPPDeleteComments
                     {
                         for (int i = 0; i < singleLine.Length; i++)
                         {
-                            if (singleLine[i] == '"')
+                            if (singleLine[i] == quotesPattern)
                             {
                                 indexFinalElement = i;
                                 endFileStringIndex = allFileRows.IndexOf(singleLine);
@@ -78,105 +90,174 @@ namespace CPPDeleteComments
 
         private void ReWriteFile(string path)
         {
+            CheckAndRemoveBackslashDoubleComments();
             CheckMultilineComments();
-            CheckEndDeleteBackslashComments(path);
-            DeleteMultilineComments(path);
+            DeleteComments();
+            WriteInFile(path);
 
         }
+
+        /// <summary>
+        /// Method for getting multiline comments. 
+        /// Store rows indexes where comment begin and end
+        /// Store positions of comments in their rows
+        /// We fill up stringsMultilineCommentsRange list
+        /// </summary>
 
         private void CheckMultilineComments()
         {
-                int startFileStringWithCommentIndex = 0;
-                int indexStartCommentElement = 0;
+            int startFileStringWithCommentIndex = 0;
+            int indexStartCommentElement = 0;
 
-                int endFileStringWithCommentIndex;
-                int indexFinalCommentElement;
+            int endFileStringWithCommentIndex = 0;
+            int indexFinalCommentElement = 0;
 
-                bool isMultilineComment = false;
-                foreach (string singleString in allFileRows)
+            bool isMultilineComment = false;
+
+            int rangeObjectsIterator = 0;
+
+            foreach (string singleString in allFileRows)
+            {
+                if (!isMultilineComment)
                 {
-                    if (!isMultilineComment)
+                    if (singleString.Contains("/*"))
                     {
-                        if (singleString.Contains("/*"))
-                        {
-                            
-                            startFileStringWithCommentIndex = allFileRows.IndexOf(singleString);
-                            indexStartCommentElement = singleString.IndexOf("/*");
-                            if (singleString.Contains(@"*\"))
-                            {
-                                endFileStringWithCommentIndex = allFileRows.IndexOf(singleString);
-                                indexFinalCommentElement = singleString.IndexOf(@"*\");
-                                stringsMultilineCommentsRange.Add(new StringRange(startFileStringWithCommentIndex, endFileStringWithCommentIndex, indexStartCommentElement, indexFinalCommentElement));
-                                isMultilineComment = false;
-                            }
-                            else
-                            {
-                                isMultilineComment = true;
-                            }
+                        startFileStringWithCommentIndex = allFileRows.IndexOf(singleString, endFileStringWithCommentIndex);
 
-                        }
-                    }
-                    else
-                    {
-                        if (singleString.Contains(@"*\"))
+                        indexStartCommentElement = singleString.IndexOf("/*");
+
+                        stringsMultilineCommentsRange.Add(new StringRange(startFileStringWithCommentIndex, endFileStringWithCommentIndex, indexStartCommentElement, indexFinalCommentElement));
+
+                        if (singleString.Contains("*/"))
                         {
-                            endFileStringWithCommentIndex = allFileRows.IndexOf(singleString);
-                            indexFinalCommentElement = singleString.IndexOf(@"*\");
-                            stringsMultilineCommentsRange.Add(new StringRange(startFileStringWithCommentIndex, endFileStringWithCommentIndex, indexStartCommentElement, indexFinalCommentElement));
+                            endFileStringWithCommentIndex = allFileRows.IndexOf(singleString, startFileStringWithCommentIndex);
+                            indexFinalCommentElement = singleString.IndexOf("*/");
+                            stringsMultilineCommentsRange[rangeObjectsIterator].EndStringRange = endFileStringWithCommentIndex;
+                            stringsMultilineCommentsRange[rangeObjectsIterator].IndexFinalElement = indexFinalCommentElement;
+                            rangeObjectsIterator += 1;
                             isMultilineComment = false;
+                        }
+                        else
+                        {
+                            isMultilineComment = true;
+                        }
+
+                    }
+                }
+                else
+                {
+                    if (singleString.Contains("*/"))
+                    {
+                        endFileStringWithCommentIndex = allFileRows.IndexOf(singleString, startFileStringWithCommentIndex);
+                        indexFinalCommentElement = singleString.IndexOf("*/");
+
+                        stringsMultilineCommentsRange[rangeObjectsIterator].EndStringRange = endFileStringWithCommentIndex;
+                        stringsMultilineCommentsRange[rangeObjectsIterator].IndexFinalElement = indexFinalCommentElement;
+                        isMultilineComment = false;
+                        rangeObjectsIterator += 1;
+                    }
+
+
+                }
+
+            }
+
+        }
+        /// <summary>
+        /// Find all double slash comments
+        /// remove it
+        /// Fill up allFileRowsWithoutSingleLineComments list
+        /// </summary>
+        private void CheckAndRemoveBackslashDoubleComments()
+        {
+            foreach (string singleString in allFileRows)
+            {
+                if (singleString.Contains("//"))
+                {
+                    if (CheckIfCharSymbol(singleString))
+                    {
+                        allFileRowsWithoutSingleLineComments.Add(singleString);
+                        continue;
+                    }
+
+                    //Another way of detecting char symbol, but method helps to manipulate with single quotes range
+                    //if (singleString.Contains("'//'"))
+                    //{
+                    //    allFileRowsWithoutSingleLineComments.Add(singleString);
+                    //    continue;
+                    //}
+                    foreach (StringRange singleRange in stringsRangeInFile)
+                    {
+                        if (allFileRows.IndexOf(singleString) < singleRange.StartStringRange)
+                        {
+                            allFileRowsWithoutSingleLineComments.Add(singleString.Remove(singleString.IndexOf("//")));
                             break;
                         }
 
-
-                    }
-   
-                }
-
-        }
-        private void CheckEndDeleteBackslashComments(string path)
-        {
-            using (StreamWriter sw = new StreamWriter(path))
-            {
-                foreach (string singleString in allFileRows)
-                {
-                    if (singleString.Contains("//"))
-                    {
-                        Console.WriteLine("Строка найдена");
-                        foreach (StringRange singleRange in stringsRangeInFile)
+                        else if (allFileRows.IndexOf(singleString) == singleRange.EndStringRange)
                         {
-                            //TODO добавитть проверку на комментарий после строки
-                            if (allFileRows.IndexOf(singleString) < singleRange.StartStringRange)
+                            if (singleString.IndexOf("//") > singleRange.IndexFinalElement)
                             {
-                                sw.WriteLine(singleString.Remove(singleString.IndexOf("//")));
-                            }
-                            else if (allFileRows.IndexOf(singleString) == singleRange.EndStringRange)
-                            {
-                                if (singleString.IndexOf("//") > singleRange.IndexFinalElement)
-                                {
-                                    sw.WriteLine(singleString.Remove(singleString.IndexOf("//")));
-                                }
+                                allFileRowsWithoutSingleLineComments.Add(singleString.Remove(singleString.IndexOf("//")));
+                                break;
                             }
                             else
                             {
-                                sw.WriteLine(singleString.Remove(singleString.IndexOf("//")));
+                                allFileRowsWithoutSingleLineComments.Add(singleString);
+                                break;
                             }
                         }
                     }
-                    else
-                    {
-                        sw.WriteLine(singleString);
-                    }
                 }
-                sw.Close();
+                else
+                {
+                    allFileRowsWithoutSingleLineComments.Add(singleString);
+                }
             }
         }
-        private void DeleteMultilineComments(string path)
+
+
+        private bool CheckIfCharSymbol(string stringWithBackslash)
         {
+            if (stringWithBackslash[stringWithBackslash.IndexOf("//") - 1 < 0 ? 0 : stringWithBackslash.IndexOf("//") - 1] == '\'' 
+                && 
+                stringWithBackslash[stringWithBackslash.IndexOf("//") + 2] == '\'')
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Fill up allFilesRows list with data from allFileRowsWithoutSingleLineComments list
+        /// Take substrings without comment part
+        /// delete ranges between multiline comments
+        /// </summary>
+        private void DeleteComments()
+        {
+            allFileRows.Clear();
+            allFileRows.AddRange(allFileRowsWithoutSingleLineComments);
+
             foreach (StringRange singleRange in stringsMultilineCommentsRange)
             {
-                allFileRows.RemoveRange(singleRange.StartStringRange, singleRange.EndStringRange - singleRange.StartStringRange);
+
+                allFileRows[singleRange.StartStringRange] = allFileRows[singleRange.StartStringRange].Substring(0, singleRange.IndexStartElement);
+                allFileRows[singleRange.EndStringRange] = allFileRows[singleRange.EndStringRange].Substring(singleRange.IndexFinalElement - 2 <  0 ? 0 : singleRange.IndexFinalElement-2, allFileRows[singleRange.EndStringRange].Length-2);
+
+                for (int i = singleRange.StartStringRange + 1; i < singleRange.EndStringRange; i++)
+                {
+                    allFileRows[i] = "";
+                }
             }
-            Console.WriteLine("Delete this rows");
+
+
+
+        }
+        private void WriteInFile(string path)
+        {
             using (StreamWriter sw = new StreamWriter(path))
             {
 
